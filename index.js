@@ -2,7 +2,9 @@
  const express = require('express');
  const app = express()
  const cors = require('cors');
+ require('dotenv').config();
  const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+ const stripe = require('stripe')(process.env.STRIPE_SEC);
 const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
@@ -49,6 +51,7 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
     const db = client.db('ticket_Bari')
     const ticketCollection = db.collection('tickets')
+    const bookCollection = db.collection('book')
     const userCollection = db.collection('users')
     app.get('/tickets', async(req ,res)=>{
       const result = await ticketCollection.find().toArray()
@@ -77,7 +80,15 @@ async function run() {
       const query = {_id : new ObjectId(id)}
 
       const update = {
-        $set:{tickets}
+        $set:{
+           title: tickets.title,
+        departure: tickets.departure, 
+           from:tickets.from, 
+           to:tickets.to,
+           price:tickets.price,
+            quantity:tickets.quantity,
+            transportType:tickets.transportType
+        }
       }
       const result = await ticketCollection.updateOne(query ,update)
       res.send(result)
@@ -88,7 +99,100 @@ async function run() {
       const result = await ticketCollection.deleteOne(query)
       res.send(result)
     })
-    // users
+    // payment
+//      app.post('/payment-checkout-session', async(req ,res)=>{
+//       const paymentInfo = req.body
+//       const amount = parseInt(paymentInfo.total) * 100
+//       const quantity = parseInt(paymentInfo.quantity)
+//       const session = await stripe.checkout.sessions.create({
+  
+//   line_items: [
+//     {
+//    price_data: {
+//     currency: 'usd',
+//     unit_amount: amount,
+//     product_data : {
+//       name : `please pay for ${paymentInfo.title}`
+//     }
+//    },
+//       quantity: quantity,
+//     },
+//   ],
+//   mode: 'payment',
+//   metadata: {
+//     ticketId : paymentInfo.ticketId,
+//    title : paymentInfo.title,
+ 
+//   },
+//   customer_email : paymentInfo.userEmail,
+//   success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+// cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+// });
+// res.send({url : session.url})
+
+//     })
+
+app.post('/payment-checkout-session', async (req, res) => {
+  try {
+    const paymentInfo = req.body;
+    console.log("BACKEND PAYMENT INFO:", paymentInfo);
+
+    const amount = parseInt(paymentInfo.total) * 100;
+    const quantity = parseInt(paymentInfo.quantity);
+
+    console.log("AMOUNT:", amount, "QUANTITY:", quantity);
+
+    const session = await stripe.checkout.sessions.create({
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: amount,
+            product_data: {
+              name: `please pay for ${paymentInfo.title}`
+            }
+          },
+          quantity,
+        },
+      ],
+      mode: 'payment',
+      metadata: {
+        ticketId: paymentInfo.ticketId,
+        title: paymentInfo.title,
+      },
+      customer_email: paymentInfo.userEmail,
+      success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+    });
+
+    res.send({ url: session.url });
+  } catch (err) {
+    console.log("STRIPE ERROR:", err);
+    res.status(400).send({ error: err.message });
+  }
+});
+
+    // book
+    app.get('/myBookedTickets/:email' , async(req , res)=>{
+      const email = req.params.email
+      const result = await bookCollection.find({userEmail: email}).toArray()
+      res.send(result)
+
+    })
+    app.post('/myBookTickets' , async(req ,res)=>{
+      
+      const books = req.body
+      console.log(books)
+      const query = {_id: new ObjectId(books.ticketId)}
+    books.status = "pending"
+   
+      const update = {
+        $inc:{quantity: -books.quantity}
+      }
+      await ticketCollection.updateOne(query , update)
+       const result = await bookCollection.insertOne(books)
+      res.send(result)
+    })
 
     // role
     app.get('/users/role/:email' , async(req , res)=>{
