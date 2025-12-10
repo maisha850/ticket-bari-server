@@ -55,12 +55,67 @@ async function run() {
     const paymentCollection = db.collection('payment')
     const userCollection = db.collection('users')
     app.get('/tickets', async(req ,res)=>{
+      
       const result = await ticketCollection.find().toArray()
       res.send(result)
     })
+    // approve
+//     app.patch('/tickets/approve/:id',  async (req, res) => {
+//   const {email}=req.body
+  
+//   const admin = await userCollection.findOne({ email: email });
+//   if ( admin.role !== 'admin') {
+//     return res.status(403).send({ message: "Only admin can approve" });
+//   }
+
+//   const id = req.params.id;
+
+//   const result = await ticketCollection.updateOne(
+//     { _id: new ObjectId(id) },
+//     { $set: { 
+// verificationStatus: "approved" } }
+//   );
+
+//   res.send(result);
+// });
+// reject
+
+
+app.patch('/tickets/approve/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await ticketCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { verificationStatus: "approved" } }
+    );
+    res.send(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+app.patch('/tickets/reject/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await ticketCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { verificationStatus: "rejected" } }
+    );
+    res.send(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Server error" });
+  }
+});
+
+
+
     app.post('/tickets' , async(req , res)=>{
      const ticket = req.body
      ticket.verificationStatus = "pending"
+       if (ticket.isFraud === true) {
+    return res.status(403).send({ message: "You are flagged as fraud, cannot add ticket" });
+  }
      const result = await ticketCollection.insertOne(ticket) 
      res.send(result)
     })
@@ -70,11 +125,34 @@ async function run() {
       const result = await ticketCollection.findOne(query)
       res.send(result)
     })
-    app.get('/myAddedTickets/:email' , async(req, res)=>{
-      const email = req.params.email
-      const result = await ticketCollection.find({vendorEmail: email}).toArray()
-      res.send(result)
-    })
+    // app.get('/myAddedTickets/:email' , async(req, res)=>{
+    //   const email = req.params.email
+
+
+    
+
+
+    //   const result = await ticketCollection.find({vendorEmail: email}).toArray()
+    //   res.send(result)
+    // })
+
+    app.get('/myAddedTickets/:email', async (req, res) => {
+  const email = req.params.email;
+
+  // Find the user first
+  const user = await userCollection.findOne({ email });
+  if (!user) return res.status(404).send({ message: "User not found" });
+
+  // If the user is marked as fraud, return empty array
+  if (user.isFraud) return res.send([]);
+
+  // Otherwise, return their tickets
+  const tickets = await ticketCollection.find({ vendorEmail: email }).toArray();
+  res.send(tickets);
+});
+
+
+
     app.patch('/tickets/:id' , async(req , res)=>{
       const id = req.params.id
       const tickets = req.body
@@ -295,6 +373,16 @@ app.get('/payments',  async(req , res)=>{
           }
           const result = await userCollection.updateOne(query , update)
           res.send(result)
+        })
+
+        app.get('/users/:email', async(req, res)=>{
+          const email = req.params.email;
+          const query = {email : email}
+          const user = await userCollection.findOne(query);
+          if(!user){
+            return res.status(404).send({message : "User not found"})
+          }
+          res.send(user)
         })
 
         app.patch('/users/markFraud/:id', async (req, res) => {
