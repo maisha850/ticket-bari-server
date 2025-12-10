@@ -240,8 +240,8 @@ app.get('/payments',  async(req , res)=>{
        const result = await bookCollection.insertOne(books)
       res.send(result)
     })
-    // app.get('/requested-bookings' , async(req , res)=>{
-    //   const 
+    // app.get('/requested-bookings/vendor' , async(req , res)=>{
+    //   const {vendorEmail , status}=req.query
     // })
 
     // role
@@ -250,6 +250,82 @@ app.get('/payments',  async(req , res)=>{
       const result = await userCollection.findOne({email: email})
       res.send({role: result?.role})
     })
+    // admin
+
+     app.get('/users',  async (req, res) => {
+            const searchText = req.query.searchText;
+            const query = {};
+
+            if (searchText) {
+                // query.displayName = {$regex: searchText, $options: 'i'}
+
+                query.$or = [
+                    { displayName: { $regex: searchText, $options: 'i' } },
+                    { email: { $regex: searchText, $options: 'i' } },
+                ]
+
+            }
+
+            const cursor = userCollection.find(query).sort({ createdAt: -1 }).limit(5);
+            const result = await cursor.toArray();
+            res.send(result);
+        });
+           app.post('/users', async (req, res) => {
+            const user = req.body;
+            user.role = 'user';
+            user.createdAt = new Date();
+            const email = user.email;
+            const userExists = await userCollection.findOne({ email })
+
+            if (userExists) {
+                return res.send({ message: 'user exists' })
+            }
+
+            const result = await userCollection.insertOne(user);
+            res.send(result);
+        })
+        app.patch('/users/role/:id' , async(req, res)=>{
+          const roleInfo = req.body
+          const id = req.params.id
+          const query = {_id : new ObjectId(id)}
+          const update = {
+            $set: {
+              role: roleInfo.role
+            }
+          }
+          const result = await userCollection.updateOne(query , update)
+          res.send(result)
+        })
+
+        app.patch('/users/markFraud/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    // 1️⃣ Mark user as fraud
+    const userUpdate = await userCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { isFraud: true } }
+    );
+
+    // 2️⃣ Hide all vendor tickets
+    const ticketUpdate = await ticketCollection.updateMany(
+      { vendorId: id },
+      { $set: { status: "hidden" } }
+    );
+
+    res.send({
+      success: true,
+      message: "Vendor marked as fraud and tickets hidden.",
+      userUpdate,
+      ticketUpdate
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({ success: false, error: error.message });
+  }
+});
+
   } 
   finally {
     // await client.close();
