@@ -59,27 +59,14 @@ async function run() {
       const result = await ticketCollection.find().toArray()
       res.send(result)
     })
+    
+    app.get('/allTickets', async(req ,res)=>{
+      
+      const result = await ticketCollection.find({verificationStatus: 'approved'}).toArray()
+      res.send(result)
+    })
+    
     // approve
-//     app.patch('/tickets/approve/:id',  async (req, res) => {
-//   const {email}=req.body
-  
-//   const admin = await userCollection.findOne({ email: email });
-//   if ( admin.role !== 'admin') {
-//     return res.status(403).send({ message: "Only admin can approve" });
-//   }
-
-//   const id = req.params.id;
-
-//   const result = await ticketCollection.updateOne(
-//     { _id: new ObjectId(id) },
-//     { $set: { 
-// verificationStatus: "approved" } }
-//   );
-
-//   res.send(result);
-// });
-// reject
-
 
 app.patch('/tickets/approve/:id', async (req, res) => {
   try {
@@ -107,12 +94,48 @@ app.patch('/tickets/reject/:id', async (req, res) => {
     res.status(500).send({ message: "Server error" });
   }
 });
+// advertise
+app.get('/advertisedCount', async (req, res) => {
+  const count = await ticketCollection.countDocuments({ advertise: true });
+  res.send({ count });
+});
+
+app.patch('/advertiseTickets/:id', async(req ,res)=>{
+      const id = req.params.id
+      const {advertise}=req.body
+     if (advertise === true) {
+    const count = await ticketCollection.countDocuments({ advertise: true });
+
+    if (count >= 6) {
+      return res.send({
+        allowed: false,
+        message: "Maximum 6 advertised tickets allowed."
+      });
+    }
+  }
+    
+      const query = { _id: new ObjectId(id)}
+      const update = {
+        $set:{advertise :advertise}
+      }
+      const result = await ticketCollection.updateOne(query , update)
+        res.send({ allowed: true, ...result });
+    })
+     app.get('/advertiseTickets', async(req ,res)=>{
+      
+      const result = await ticketCollection.find({verificationStatus: 'approved' , advertise: true}).toArray()
+      res.send(result)
+    })
 
 
-
+app.get('/latest-tickets' , async(req , res)=>{
+  const result = await ticketCollection.find().sort({createdAt: -1}).limit(6).toArray()
+  res.send(result)
+})
     app.post('/tickets' , async(req , res)=>{
      const ticket = req.body
      ticket.verificationStatus = "pending"
+     ticket.createdAt = new Date().toISOString()
        if (ticket.isFraud === true) {
     return res.status(403).send({ message: "You are flagged as fraud, cannot add ticket" });
   }
@@ -125,16 +148,7 @@ app.patch('/tickets/reject/:id', async (req, res) => {
       const result = await ticketCollection.findOne(query)
       res.send(result)
     })
-    // app.get('/myAddedTickets/:email' , async(req, res)=>{
-    //   const email = req.params.email
-
-
     
-
-
-    //   const result = await ticketCollection.find({vendorEmail: email}).toArray()
-    //   res.send(result)
-    // })
 
     app.get('/myAddedTickets/:email', async (req, res) => {
   const email = req.params.email;
@@ -286,6 +300,18 @@ app.get('/payments',  async(req , res)=>{
   const email = req.query.email
   const query = {}
   if(email){
+    query.userEmail = email
+  }
+ 
+ const  result = await bookCollection.find(query).sort({paidAt: -1}).toArray()
+ res.send(result)
+
+})
+
+app.get('/paymentsHistory',  async(req , res)=>{
+  const email = req.query.email
+  const query = {}
+  if(email){
     query.customerEmail = email
   }
  
@@ -296,11 +322,11 @@ app.get('/payments',  async(req , res)=>{
 
 
 
-
     // book
     app.get('/myBookedTickets/:email' , async(req , res)=>{
       const email = req.params.email
-      const result = await bookCollection.find({userEmail: email}).toArray()
+      const result = await bookCollection.find({userEmail: email}).sort({
+bookingTime: -1}).toArray()
       res.send(result)
 
     })
@@ -318,9 +344,37 @@ app.get('/payments',  async(req , res)=>{
        const result = await bookCollection.insertOne(books)
       res.send(result)
     })
-    // app.get('/requested-bookings/vendor' , async(req , res)=>{
-    //   const {vendorEmail , status}=req.query
-    // })
+    // booking Status
+  app.patch('/booking-accepted/:id' , async(req , res)=>{
+    const id = req.params.id
+     const query = {_id: new ObjectId(id)}
+     const update = {
+      $set:{
+status : 'accepted'
+      }
+     }
+     const result = await bookCollection.updateOne(query , update)
+     res.send(result)
+
+  })
+  // reject
+
+   app.patch('/booking-rejected/:id' , async(req , res)=>{
+
+    const id = req.params.id
+     const query = {_id: new ObjectId(id)}
+     const update = {
+      $set:{
+status : 'rejected'
+      }
+     }
+
+     const result = await bookCollection.updateOne(query , update)
+ 
+     res.send(result)
+
+  })
+
 
     // role
     app.get('/users/role/:email' , async(req , res)=>{
@@ -412,6 +466,67 @@ app.get('/payments',  async(req , res)=>{
     console.log(error);
     res.status(500).send({ success: false, error: error.message });
   }
+});
+// revenue
+//  app.get('/stats/revenue', async (req, res) => {
+//             const pipeline = [
+//                 {
+//                     $group: {
+//                         _id: null,
+//                         total: { $sum: "$amount" }
+//                     }
+//                 }
+                
+//             ]
+//             const revenue = await paymentCollection.aggregate(pipeline).toArray();
+//             res.send({ totalRevenue: revenue[0]?.total || 0 });
+//         })
+
+app.get('/stats/revenue', async (req, res) => {
+  const result = await paymentCollection.aggregate([
+    { $group: { _id: null, total: { $sum: "$amount" } } }
+  ]).toArray();
+
+  const usd = result[0]?.total || 0;
+
+  const bdt = usd * 117; // 🚀 Convert
+
+  res.send({ totalRevenue: bdt });
+});
+
+
+//         app.get('/stats/tickets-sold', async (req, res) => {
+//   const sold = await paymentCollection.aggregate([
+//     { $group: { _id: null, total: { $sum: "$quantity" } } }
+//   ]).toArray();
+
+//   res.send({ totalTicketsSold: sold[0]?.total || 0 });
+// });
+
+
+app.get('/stats/tickets-sold', async (req, res) => {
+  const sold = await paymentCollection.aggregate([
+    {
+      $group: {
+        _id: null,
+        total: { $sum: { $toInt: "$quantity" } }  // ✅ Convert string -> number
+      }
+    }
+  ]).toArray();
+
+  res.send({ totalTicketsSold: sold[0]?.total || 0 });
+});
+
+
+
+
+// Total Tickets Added 
+app.get('/stats/tickets-added', async (req, res) => {
+  const added = await ticketCollection.aggregate([
+    { $group: { _id: null, total: { $sum: "$quantity" } } }
+  ]).toArray();
+
+  res.send({ totalTicketsAdded: added[0]?.total || 0 });
 });
 
   } 
