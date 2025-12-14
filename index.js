@@ -161,7 +161,8 @@ app.get('/latest-tickets' , async(req , res)=>{
   if (user.isFraud) return res.send([]);
 
   // Otherwise, return their tickets
-  const tickets = await ticketCollection.find({ vendorEmail: email }).toArray();
+  const tickets = await ticketCollection.find({ vendorEmail: email }).sort({
+createdAt: -1}).toArray();
   res.send(tickets);
 });
 
