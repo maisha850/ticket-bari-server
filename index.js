@@ -76,6 +76,11 @@ async function run() {
       const result = await ticketCollection.find().sort({createdAt: -1}).toArray()
       res.send(result)
     })
+    app.get('/manage-tickets', verifyJwt, verifyAdmin, async(req ,res)=>{
+      
+      const result = await ticketCollection.find().sort({createdAt: -1}).toArray()
+      res.send(result)
+    })
     
     app.get('/allTickets', async(req ,res)=>{
       
@@ -138,7 +143,7 @@ app.patch('/advertiseTickets/:id', async(req ,res)=>{
       const result = await ticketCollection.updateOne(query , update) 
         res.send({ allowed: true, ...result });
     })
-     app.get('/advertiseTickets', async(req ,res)=>{
+     app.get('/advertiseTickets', verifyJwt, verifyAdmin, async(req ,res)=>{
       
       const result = await ticketCollection.find({verificationStatus: 'approved' , advertise: true}).toArray()
       res.send(result)
@@ -170,14 +175,14 @@ app.get('/latest-tickets' , async(req , res)=>{
     app.get('/myAddedTickets/:email', verifyJwt, verifyVendor, async (req, res) => {
   const email = req.params.email;
 
-  // Find the user first
+  
   const user = await userCollection.findOne({ email });
   if (!user) return res.status(404).send({ message: "User not found" });
 
-  // If the user is marked as fraud, return empty array
+  
   if (user.isFraud) return res.send([]);
 
-  // Otherwise, return their tickets
+  
   const tickets = await ticketCollection.find({ vendorEmail: email }).sort({
 createdAt: -1}).toArray();
   res.send(tickets);
@@ -409,7 +414,7 @@ status : 'rejected'
     })
     // admin
 
-     app.get('/users',  async (req, res) => {
+     app.get('/users',verifyJwt, verifyAdmin,  async (req, res) => {
             const searchText = req.query.searchText;
             const query = {};
 
@@ -468,13 +473,12 @@ status : 'rejected'
   try {
     const id = req.params.id;
 
-    // 1️⃣ Mark user as fraud
+
     const userUpdate = await userCollection.updateOne(
       { _id: new ObjectId(id) },
       { $set: { isFraud: true } }
     );
 
-    // 2️⃣ Hide all vendor tickets
     const ticketUpdate = await ticketCollection.updateMany(
       { vendorId: id },
       { $set: { status: "hidden" } }
@@ -493,19 +497,7 @@ status : 'rejected'
   }
 });
 // revenue
-//  app.get('/stats/revenue', async (req, res) => {
-//             const pipeline = [
-//                 {
-//                     $group: {
-//                         _id: null,
-//                         total: { $sum: "$amount" }
-//                     }
-//                 }
-                
-//             ]
-//             const revenue = await paymentCollection.aggregate(pipeline).toArray();
-//             res.send({ totalRevenue: revenue[0]?.total || 0 });
-//         })
+
 
 app.get('/stats/revenue', async (req, res) => {
   const result = await paymentCollection.aggregate([
@@ -514,19 +506,11 @@ app.get('/stats/revenue', async (req, res) => {
 
   const usd = result[0]?.total || 0;
 
-  const bdt = usd * 117; // 🚀 Convert
+  const bdt = usd * 117; 
 
   res.send({ totalRevenue: bdt });
 });
 
-
-//         app.get('/stats/tickets-sold', async (req, res) => {
-//   const sold = await paymentCollection.aggregate([
-//     { $group: { _id: null, total: { $sum: "$quantity" } } }
-//   ]).toArray();
-
-//   res.send({ totalTicketsSold: sold[0]?.total || 0 });
-// });
 
 
 app.get('/stats/tickets-sold', async (req, res) => {
@@ -534,7 +518,7 @@ app.get('/stats/tickets-sold', async (req, res) => {
     {
       $group: {
         _id: null,
-        total: { $sum: { $toInt: "$quantity" } }  // ✅ Convert string -> number
+        total: { $sum: { $toInt: "$quantity" } }  
       }
     }
   ]).toArray();
