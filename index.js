@@ -118,7 +118,7 @@ app.patch('/advertiseTickets/:id', async(req ,res)=>{
       const update = {
         $set:{advertise :advertise}
       }
-      const result = await ticketCollection.updateOne(query , update)
+      const result = await ticketCollection.updateOne(query , update) 
         res.send({ allowed: true, ...result });
     })
      app.get('/advertiseTickets', async(req ,res)=>{
@@ -303,7 +303,8 @@ app.get('/payments',  async(req , res)=>{
     query.userEmail = email
   }
  
- const  result = await bookCollection.find(query).sort({paidAt: -1}).toArray()
+ const  result = await bookCollection.find(query).sort({
+bookingTime: -1}).toArray()
  res.send(result)
 
 })
