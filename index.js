@@ -56,7 +56,7 @@ async function run() {
     const userCollection = db.collection('users')
     app.get('/tickets', async(req ,res)=>{
       
-      const result = await ticketCollection.find().toArray()
+      const result = await ticketCollection.find().sort({createdAt: -1}).toArray()
       res.send(result)
     })
     
