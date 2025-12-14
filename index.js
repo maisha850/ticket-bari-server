@@ -54,6 +54,23 @@ async function run() {
     const bookCollection = db.collection('book')
     const paymentCollection = db.collection('payment')
     const userCollection = db.collection('users')
+    // middleware
+     const verifyAdmin=async(req , res, next)=>{
+    const email = req.tokenEmail
+    const user = await userCollection.findOne({email})
+    if(user.role !== 'admin' ){
+      return res.status(403).send({message: 'Admin only actions!', role: user.role})
+    }
+    next()
+  }
+   const verifySeller=async(req , res, next)=>{
+    const email = req.tokenEmail
+    const user = await userCollection.findOne({email})
+    if(user.role !== 'vendor' ){
+      return res.status(403).send({message: 'Seller only actions!', role: user.role})
+    }
+    next()
+  }
     app.get('/tickets', async(req ,res)=>{
       
       const result = await ticketCollection.find().sort({createdAt: -1}).toArray()
@@ -168,25 +185,31 @@ createdAt: -1}).toArray();
 
 
 
-    app.patch('/tickets/:id' , async(req , res)=>{
-      const id = req.params.id
-      const tickets = req.body
-      const query = {_id : new ObjectId(id)}
+   
+app.patch('/tickets/:id', async (req, res) => {
+  const id = req.params.id;
+  const data = req.body;
 
-      const update = {
-        $set:{
-           title: tickets.title,
-        departure: tickets.departure, 
-           from:tickets.from, 
-           to:tickets.to,
-           price:tickets.price,
-            quantity:tickets.quantity,
-            transportType:tickets.transportType
-        }
-      }
-      const result = await ticketCollection.updateOne(query ,update)
-      res.send(result)
-    })
+  const query = { _id: new ObjectId(id) };
+
+  // ✅ Only update provided fields
+  const updateFields = {};
+
+  Object.keys(data).forEach((key) => {
+    if (data[key] !== undefined) {
+      updateFields[key] = data[key];
+    }
+  });
+
+  const update = {
+    $set: updateFields,
+  };
+
+  const result = await ticketCollection.updateOne(query, update);
+  res.send(result);
+});
+
+
    app.delete('/tickets/:id' , async(req , res)=>{
       const id = req.params.id
       const query = {_id : new ObjectId(id)}
