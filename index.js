@@ -63,7 +63,7 @@ async function run() {
     }
     next()
   }
-   const verifySeller=async(req , res, next)=>{
+   const verifyVendor=async(req , res, next)=>{
     const email = req.tokenEmail
     const user = await userCollection.findOne({email})
     if(user.role !== 'vendor' ){
@@ -149,7 +149,7 @@ app.get('/latest-tickets' , async(req , res)=>{
   const result = await ticketCollection.find().sort({createdAt: -1}).limit(6).toArray()
   res.send(result)
 })
-    app.post('/tickets' , async(req , res)=>{
+    app.post('/tickets' , verifyJwt, verifyVendor, async(req , res)=>{
      const ticket = req.body
      ticket.verificationStatus = "pending"
      ticket.createdAt = new Date().toISOString()
@@ -167,7 +167,7 @@ app.get('/latest-tickets' , async(req , res)=>{
     })
     
 
-    app.get('/myAddedTickets/:email', async (req, res) => {
+    app.get('/myAddedTickets/:email', verifyJwt, verifyVendor, async (req, res) => {
   const email = req.params.email;
 
   // Find the user first
@@ -320,7 +320,7 @@ app.post('/payment-checkout-session', async (req, res) => {
         res.status(500).send({ success: false, message: "Server error" });
     }
 });
-app.get('/payments',  async(req , res)=>{
+app.get('/payments', verifyJwt,verifyVendor,  async(req , res)=>{
   const email = req.query.email
   const query = {}
   if(email){
