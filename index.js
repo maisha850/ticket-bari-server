@@ -9,7 +9,9 @@ const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./ticket-bari-firebase-adminsdk.json");
+// const serviceAccount = require("./ticket-bari-firebase-adminsdk.json");
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 const verifyJwt = async(req ,res, next)=>{
   const token = req.headers.authorization.split(' ')[1]
   console.log(token)
@@ -35,7 +37,7 @@ admin.initializeApp({
 // middleWare
 app.use(cors())
 app.use(express.json())
-const uri = 'mongodb+srv://ticketBari:OQtQUfqntX2kahIM@cluster0.6aaggy0.mongodb.net/?appName=Cluster0'
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.6aaggy0.mongodb.net/?appName=Cluster0`
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -47,8 +49,8 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     const db = client.db('ticket_Bari')
     const ticketCollection = db.collection('tickets')
     const bookCollection = db.collection('book')
@@ -84,7 +86,7 @@ async function run() {
     
     app.get('/allTickets', async(req ,res)=>{
       
-      const result = await ticketCollection.find({verificationStatus: 'approved'}).toArray()
+      const result = await ticketCollection.find({verificationStatus: 'approved'}).sort({createdAt: -1}).toArray()
       res.send(result)
     })
     
@@ -143,7 +145,7 @@ app.patch('/advertiseTickets/:id', async(req ,res)=>{
       const result = await ticketCollection.updateOne(query , update) 
         res.send({ allowed: true, ...result });
     })
-     app.get('/advertiseTickets', verifyJwt, verifyAdmin, async(req ,res)=>{
+     app.get('/advertiseTickets',  async(req ,res)=>{
       
       const result = await ticketCollection.find({verificationStatus: 'approved' , advertise: true}).toArray()
       res.send(result)
